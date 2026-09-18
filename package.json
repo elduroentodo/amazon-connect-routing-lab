@@ -1,0 +1,16 @@
+{
+  "name": "amazon-connect-routing-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "simulate": "npm run build && node dist/simulate.js",
+    "simulate:lambda": "node lambda/support-context-lookup/simulate.mjs",
+    "agent-preview": "npm run build && node dist/agent-workspace-preview.js"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

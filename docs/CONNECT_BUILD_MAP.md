@@ -7,7 +7,7 @@ This map separates the verified AWS sandbox from the richer local TypeScript sim
 | Capability | Verified configuration | Boundary |
 | --- | --- | --- |
 | Connect flow | A published, 14-action inbound flow starts with a bilingual language choice, sets `en-US` or `es-419`, and invokes a Lex V2 voice prompt. Its content was read back from AWS and matched the CLI candidate. | No claimed number and no end-to-end call test. |
-| Lex V2 | A stable version-1 alias has both locales enabled. Both locales contain `TechnicalIncident`, `BillingHelp`, `OnboardingHelp`, and `SpeakToAgent`; the alias is associated with Connect. | Voice recognition was tested in Lex previously, not through an outside Connect call. No generative answer or RAG component is deployed. |
+| Lex V2 | The stable Connect-facing alias now targets version 2 with both locales enabled. Both contain `TechnicalIncident`, `BillingHelp`, `OnboardingHelp`, and `SpeakToAgent`. Assisted NLU disambiguation asks a follow-up for some overlapping requests. | The new dialogue was verified with fictional Lex text-runtime requests in both languages, not through an outside Connect call. No generative answer or RAG component is deployed. |
 | Intent routing | Billing, onboarding, and agent requests select `general-support` for English or `spanish-support` for Spanish. Technical intent invokes Lambda and checks its returned priority. | The fallback keypad is the original English-language three-option prompt. |
 | Priority decision | `External.priority = urgent` selects `escalations`; other results or Lambda errors go to the original three-option keypad. | The flow passes no customer ID, so the deployed Lambda returns `normal` on this path. The urgent branch is present but cannot be exercised by that input alone. |
 | Queues and routing profile | `escalations`, `spanish-support`, and `general-support` exist; the routing profile prioritizes escalation and permits one voice contact at a time. | No live contact has entered a queue. |
@@ -19,10 +19,12 @@ This map separates the verified AWS sandbox from the richer local TypeScript sim
 ```text
 Welcome
   └─ Choose language: 1 English / 2 Español
-       ├─ Set en-US → Lex English ─┬─ TechnicalIncident → Lambda → urgent? → escalations
+       ├─ Set en-US → Lex English ─┬─ ambiguous? → clarify → selected intent
+       │                           ├─ TechnicalIncident → Lambda → urgent? → escalations
        │                           │                            └─ otherwise → keypad
        │                           └─ billing/onboarding/agent → general-support
-       └─ Set es-419 → Lex Spanish ┬─ TechnicalIncident → same Lambda decision
+       └─ Set es-419 → Lex Spanish ┬─ ambiguous? → clarify → selected intent
+                                   ├─ TechnicalIncident → same Lambda decision
                                    └─ billing/onboarding/agent → spanish-support
 
 Unmatched voice intent in either language → general-support
@@ -33,6 +35,8 @@ Every chosen queue → shared TransferContactToQueue block
 ```
 
 The language setting matters because Connect must invoke the Lex locale that matches the caller’s chosen language. The Lex intent supplies a *category*, not a trusted urgency assessment. The Lambda and explicit `External.priority` comparison retain the deterministic escalation rule.
+
+The clarification is inside Lex, so the 14-action Connect flow and its queue branches did not change. See [Lex clarification walkthrough](LEX_CLARIFICATION.md) for test evidence and limits.
 
 ## Lambda contract and limits
 

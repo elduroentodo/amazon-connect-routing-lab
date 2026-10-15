@@ -16,6 +16,7 @@ A keypad-only IVR makes every caller translate a problem into a numeric menu. A 
 4. The CLI voice-flow update completed. A subsequent `describe-contact-flow` reported `PUBLISHED`, 14 actions, and content identical to the candidate.
 5. A second, four-target update changed the Lex default and `NoMatchingCondition` routes in both languages from the keypad to `general-support`. AWS again reported `PUBLISHED`, and its live content exactly matched the reviewed candidate. Timeout and service-error targets remained on the keypad.
 6. The instance had zero claimed phone numbers. No outside call or end-to-end Connect voice test was made.
+7. Later, Lex intent disambiguation was added to both locales, tested with fictional text-runtime dialogues, and promoted through the existing Connect-facing alias as bot version 2. The Connect flow remained published with the same 14 actions. See [Lex clarification walkthrough](LEX_CLARIFICATION.md).
 
 “Published” here means the flow configuration is available inside the AWS instance. It is **not** a production contact center and cannot receive an outside call without a phone number.
 
@@ -25,7 +26,7 @@ A keypad-only IVR makes every caller translate a problem into a numeric menu. A 
 | --- | --- | --- |
 | 1 | Welcome, then “1 English / 2 Español” keypad choice | A deterministic choice tells Connect which Lex language model to use. |
 | 2 | Set Connect language to `en-US` or `es-419` | Lex V2 requires the contact language to match its bot locale. |
-| 3 | Ask for the support need with the matching Lex voice prompt | The bot classifies the utterance into a supported intent. |
+| 3 | Ask for the support need with the matching Lex voice prompt | The bot classifies the utterance into a supported intent. Version 2 may ask a follow-up when plausible intents overlap. |
 | 4a | Billing, onboarding, or human-agent intent → language-appropriate queue | These routine paths need no fictional account lookup. |
 | 4b | Technical intent → Lambda → check `External.priority` | Urgency remains a transparent rule based on returned context, not solely on a voice label. |
 | 4c | Unknown intent → `general-support` | A human can triage a request the bot cannot classify; this applies to both English and Spanish calls by explicit project choice. |
@@ -103,4 +104,4 @@ The voice layer is published and structurally verified, but not end-to-end call-
 
 A knowledge base or RAG-generated answer layer is **not** part of this deployment. It would need approved source documents, retrieval/grounding tests, answer boundaries, a human handoff, and a separate cost decision. The richer TypeScript simulation in this repository is also not the published Connect flow.
 
-There are two separate ways to add follow-up questions. First, [Lex Assisted NLU and intent disambiguation](https://docs.aws.amazon.com/lexv2/latest/dg/generative-intent-disambiguation.html) can ask a clarifying question when configured intents overlap. This keeps the existing queue/Lambda design and should be tested in a draft bot before updating its published alias. Second, [Connect agentic self-service](https://docs.aws.amazon.com/connect/latest/adminguide/agentic-self-service.html) supports multi-turn conversation, tools, and knowledge-based answers. AWS's native voice setup still invokes a conversational bot from a Get customer input flow block; it is not a simple swap of the current Lex block for an arbitrary LLM. Neither option has been enabled in this lab yet.
+There are two separate ways to add follow-up questions. First, [Lex Assisted NLU and intent disambiguation](https://docs.aws.amazon.com/lexv2/latest/dg/generative-intent-disambiguation.html) can ask a clarifying question when configured intents overlap. That first option is now enabled and text-tested in both languages; the exact change and its limits are in [Lex clarification walkthrough](LEX_CLARIFICATION.md). Second, [Connect agentic self-service](https://docs.aws.amazon.com/connect/latest/adminguide/agentic-self-service.html) supports multi-turn conversation, tools, and knowledge-based answers. That agentic/RAG option has **not** been enabled in this lab; it is not a simple swap of the current Lex block for an arbitrary LLM.

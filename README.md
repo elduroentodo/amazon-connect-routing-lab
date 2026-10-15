@@ -1,6 +1,6 @@
 # Amazon Connect Routing Lab
 
-> A documented Amazon Connect sandbox implementation for bilingual SaaS support routing — with a published Lex V2 voice layer, a deployed Node.js Lambda lookup, and a local TypeScript simulation.
+> A documented Amazon Connect sandbox implementation for bilingual SaaS support routing — with a published Lex V2 voice layer that can clarify ambiguous intents, a deployed Node.js Lambda lookup, and a local TypeScript simulation.
 
 ![Published routing flow diagram](docs/assets/published-flow-routing.svg)
 
@@ -9,7 +9,7 @@
 | Area | What this project demonstrates | Evidence in this repository |
 | --- | --- | --- |
 | Amazon Connect | A published inbound flow, bilingual voice intent routing, three queues, a routing profile, and safe keypad fallback. | [Implementation map](docs/CONNECT_BUILD_MAP.md) and [deployment walkthrough](docs/DEPLOYMENT_WALKTHROUGH.md) |
-| Amazon Lex V2 | A versioned bot alias with English and Spanish locales and four intents. | [Deployment walkthrough](docs/DEPLOYMENT_WALKTHROUGH.md) and [CLI flow builder](scripts/build-voice-flow.mjs) |
+| Amazon Lex V2 | A versioned bot alias with English and Spanish locales, four intents, and tested follow-up questions for ambiguous requests. | [Lex clarification walkthrough](docs/LEX_CLARIFICATION.md) and [CLI flow builder](scripts/build-voice-flow.mjs) |
 | AWS Lambda | A deployed synchronous lookup with a flat **STRING MAP** response. | [Handler](lambda/support-context-lookup/index.mjs) and [scenario runner](lambda/support-context-lookup/simulate.mjs) |
 | Decision design | Technical intent invokes Lambda; `External.priority = urgent` bypasses the keypad and enters escalation. Routine intents route by language. | [Published-flow diagram](docs/assets/published-flow-routing.svg) and implementation map |
 | Engineering evidence | Four repeatable fictional Lambda scenarios, plus a richer TypeScript routing model. | `npm run simulate:lambda` and `npm run simulate` |
@@ -28,6 +28,7 @@ All customer profiles and contact IDs are fictional. No real customer informatio
 The following base routing configuration is deployed and published in a personal Amazon Connect sandbox:
 
 - An inbound flow asks for English or Spanish, then uses a Lex V2 voice prompt to recognize `TechnicalIncident`, `BillingHelp`, `OnboardingHelp`, or `SpeakToAgent`.
+- The Connect-facing Lex alias now targets version 2. Lex may ask one clarifying question when multiple supported intents plausibly fit; a caller's answer then determines the intent. This was verified with fictional text-runtime requests in both locales, not an end-to-end phone call.
 - Billing, onboarding, and agent requests route to general English support or Spanish support according to the chosen language. An unrecognized intent in either language goes to `general-support` for human triage; a Lex timeout or service error still uses the keypad menu.
 - Three queues exist: `escalations`, `spanish-support`, and `general-support`.
 - Each selection sets the working queue, then converges on one shared transfer-to-queue block.
@@ -54,7 +55,7 @@ The published flow follows this fault-tolerant sequence:
 
 1. A welcome prompt sets expectations.
 2. A language choice sets the Connect contact language to `en-US` or `es-419` before invoking the corresponding Lex voice prompt.
-3. Lex identifies technical, billing, onboarding, or agent intent. Routine requests go to the language-appropriate queue.
+3. Lex identifies technical, billing, onboarding, or agent intent. An ambiguous request can receive a bilingual follow-up question before the intent is returned. Routine requests go to the language-appropriate queue.
 4. Technical intent invokes Lambda, then the flow checks `External.priority`.
 5. Only `urgent` proceeds straight to `escalations`. A normal or missing priority — and any Lambda error — preserves the three-option keypad menu.
 6. Every queue branch converges on one transfer-to-queue block. Unrecognized intent uses general support; language-choice errors, Lex timeouts/service errors, and Lambda failures retain the keypad fallback.
@@ -88,6 +89,7 @@ The project includes the non-code artifacts expected in a contact-center impleme
 
 - [Amazon Connect implementation map](docs/CONNECT_BUILD_MAP.md): separates verified Connect configuration from planned enrichment services.
 - [Deployment walkthrough](docs/DEPLOYMENT_WALKTHROUGH.md): step-by-step explanation of the AWS build, each architectural decision, and the current sandbox boundary.
+- [Lex clarification walkthrough](docs/LEX_CLARIFICATION.md): how draft testing, the confidence threshold, version 2, alias promotion, and rollback work.
 - [Demo runbook](docs/DEMO_RUNBOOK.md): three test scenarios and a 90-second portfolio-video outline.
 - [Portfolio positioning](docs/PORTFOLIO_POSITIONING.md): accurate language for a CV, LinkedIn post, or interview.
 - [Lambda handler](lambda/support-context-lookup/index.mjs): deployed Node.js handler using only two fictional customer records; no environment variables or secrets.
@@ -116,6 +118,7 @@ amazon-connect-routing-lab/
 │   ├── assets/                         # Redacted visual walkthroughs
 │   ├── CONNECT_BUILD_MAP.md            # Verified AWS configuration vs. planned work
 │   ├── DEPLOYMENT_WALKTHROUGH.md       # Build process and technical explanation
+│   ├── LEX_CLARIFICATION.md            # Bilingual clarification tests and versioning
 │   ├── DEMO_RUNBOOK.md                 # Repeatable interview/video demo
 │   └── PORTFOLIO_POSITIONING.md        # Accurate resume and LinkedIn wording
 ├── lambda/support-context-lookup/      # Deployed Node.js Lambda and local scenarios

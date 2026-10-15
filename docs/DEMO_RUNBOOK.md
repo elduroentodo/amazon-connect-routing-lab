@@ -1,11 +1,11 @@
 # Demo runbook
 
-Use this runbook to record a short, repeatable portfolio video or to explain the project in an interview. Every scenario uses fictional data and runs locally; the first step verifies the published Amazon Connect sandbox configuration and its Lambda-enabled flow.
+Use this runbook to record a short, repeatable portfolio video or to explain the project in an interview. Every scenario uses fictional data and runs locally; the first step shows the published Connect/Lex/Lambda sandbox configuration. No outside call has been made.
 
 ## Preparation
 
-1. In Amazon Connect, open the published `support-intake-routing` flow and show the welcome prompt flowing into `Lookup support context`. Show Lambda success flowing into `Check priority is urgent`, where `urgent` goes to escalation and no match goes to the three-option keypad menu; show the Lambda-error branch also going to the menu. Show the menu paths converging on the shared transfer-to-queue block. Do not claim a phone number or place a call.
-2. In AWS Lambda, open `support-context-lookup` and show the successful console test. The built-in sample intentionally returns the safe fallback (`customerFound: false`, `priority: normal`), which is also the expected sandbox behavior when no customer ID is passed from the flow.
+1. In Amazon Connect, open the published `support-intake-routing` flow. Show the language choice, `en-US`/`es-419` settings, English/Spanish Lex voice steps, technical-intent Lambda path, and keypad fallback. Show that routine intents choose a language-appropriate queue and all queue paths share one transfer block. Do not claim an end-to-end call test.
+2. In AWS Lambda, open `support-context-lookup` and show the successful console test. The built-in sample intentionally returns the safe fallback (`customerFound: false`, `priority: normal`), which is also the expected sandbox behavior when a technical-intent path sends no customer ID.
 3. From the project folder, run:
 
 ```bash
@@ -46,4 +46,4 @@ npm run simulate:lambda
 3. Run the Lambda scenarios to show the Connect-shaped event and its safe fallback.
 4. Run the three TypeScript simulation scenarios.
 5. Run the agent-workspace preview for the escalation case.
-6. Close with the honest boundary: “The Amazon Connect flow is published in a sandbox, and the Lambda lookup is deployed, console-tested, and invoked synchronously after the welcome prompt using fictional data. A published check sends `priority = urgent` to escalation; the no-identifier sandbox fallback and Lambda-error paths retain the keypad menu. Agent-handoff scenarios are local TypeScript evidence. No live calls or customer data were used.”
+6. Close with the honest boundary: “The Connect flow and Lex voice integration are published in a sandbox and the Lambda lookup is deployed using fictional data. The published content was verified after a CLI update, but no phone number or end-to-end call test was used. The current no-identifier Lambda path returns normal priority and keeps the keypad fallback. Agent-handoff scenarios are local TypeScript evidence, not deployed AWS features.”

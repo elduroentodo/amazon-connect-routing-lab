@@ -1,6 +1,6 @@
 # Amazon Connect Routing Lab
 
-> A documented Amazon Connect sandbox implementation for bilingual SaaS support routing — built with fictional data, a deployed Node.js Lambda lookup, and a local TypeScript simulation.
+> A documented Amazon Connect sandbox implementation for bilingual SaaS support routing — with a published Lex V2 voice layer, a deployed Node.js Lambda lookup, and a local TypeScript simulation.
 
 ![Published routing flow diagram](docs/assets/published-flow-routing.svg)
 
@@ -8,9 +8,10 @@
 
 | Area | What this project demonstrates | Evidence in this repository |
 | --- | --- | --- |
-| Amazon Connect | A published inbound flow, three queues, a routing profile, and safe error paths. | [Implementation map](docs/CONNECT_BUILD_MAP.md) and [deployment walkthrough](docs/DEPLOYMENT_WALKTHROUGH.md) |
+| Amazon Connect | A published inbound flow, bilingual voice intent routing, three queues, a routing profile, and safe keypad fallback. | [Implementation map](docs/CONNECT_BUILD_MAP.md) and [deployment walkthrough](docs/DEPLOYMENT_WALKTHROUGH.md) |
+| Amazon Lex V2 | A versioned bot alias with English and Spanish locales and four intents. | [Deployment walkthrough](docs/DEPLOYMENT_WALKTHROUGH.md) and [CLI flow builder](scripts/build-voice-flow.mjs) |
 | AWS Lambda | A deployed synchronous lookup with a flat **STRING MAP** response. | [Handler](lambda/support-context-lookup/index.mjs) and [scenario runner](lambda/support-context-lookup/simulate.mjs) |
-| Decision design | `External.priority = urgent` bypasses the keypad and enters the escalation queue. | [Published-flow diagram](docs/assets/published-flow-routing.svg) and implementation map |
+| Decision design | Technical intent invokes Lambda; `External.priority = urgent` bypasses the keypad and enters escalation. Routine intents route by language. | [Published-flow diagram](docs/assets/published-flow-routing.svg) and implementation map |
 | Engineering evidence | Four repeatable fictional Lambda scenarios, plus a richer TypeScript routing model. | `npm run simulate:lambda` and `npm run simulate` |
 | Safety boundary | No phone number, live calls, customer data, recordings, CRM, or DynamoDB. | [Sandbox scope](docs/DEPLOYMENT_WALKTHROUGH.md#what-is-and-is-not-in-the-aws-sandbox) |
 
@@ -26,14 +27,15 @@ All customer profiles and contact IDs are fictional. No real customer informatio
 
 The following base routing configuration is deployed and published in a personal Amazon Connect sandbox:
 
-- An inbound flow asks callers to select Spanish support, an urgent technical incident, or general support.
+- An inbound flow asks for English or Spanish, then uses a Lex V2 voice prompt to recognize `TechnicalIncident`, `BillingHelp`, `OnboardingHelp`, or `SpeakToAgent`.
+- Billing, onboarding, and agent requests route to general English support or Spanish support according to the chosen language. Unrecognized voice input or a Lex error falls back to the original three-option keypad menu.
 - Three queues exist: `escalations`, `spanish-support`, and `general-support`.
 - Each selection sets the working queue, then converges on one shared transfer-to-queue block.
-- After the synchronous Lambda succeeds, a published **Check contact attributes** block evaluates its returned `External.priority` value. `urgent` goes directly to the escalation queue; a normal or missing value continues to the keypad menu.
+- For technical intent, the flow invokes Lambda, then a published **Check contact attributes** block evaluates its returned `External.priority` value. `urgent` goes directly to escalation; normal, missing, or Lambda-error outcomes continue to the keypad menu.
 - Every configuration-error branch ends safely instead of falling through to an undefined path.
 - A routing profile prioritizes escalation work ahead of Spanish and general support, with one simultaneous voice contact per agent.
 
-No phone number is claimed or associated with the flow. Therefore, the published configuration cannot receive outside calls and does not create telephony usage. The Lambda function is deployed, console-tested with a built-in fictional sample, approved for invocation by this Amazon Connect instance, and invoked synchronously by the published flow after its welcome prompt. The current flow intentionally passes no customer identifier, so the handler returns its safe `priority: normal` fallback and the check takes the menu path; a Lambda error also takes that menu path. The project has not connected DynamoDB, Contact Control Panel integrations, callbacks, recordings, or customer data.
+No phone number is claimed or associated with the flow. Therefore, the published configuration cannot receive outside calls and does not create telephony usage. The Lambda function is deployed, console-tested with a built-in fictional sample, approved for invocation by this Amazon Connect instance, and invoked synchronously on the technical-intent path. The flow passes no customer identifier, so the handler returns its safe `priority: normal` fallback and the check takes the menu path. The project has not connected DynamoDB, Contact Control Panel integrations, callbacks, recordings, or customer data. The live flow configuration was read back from AWS after its CLI update and matched the generated candidate exactly; no end-to-end voice call was performed.
 
 ## What the simulation represents
 
@@ -51,11 +53,11 @@ No phone number is claimed or associated with the flow. Therefore, the published
 The published flow follows this fault-tolerant sequence:
 
 1. A welcome prompt sets expectations.
-2. A synchronous Lambda lookup returns a flat map of fictional context values.
-3. The flow checks `External.priority`.
-4. Only `urgent` proceeds straight to the `escalations` queue.
-5. A normal or missing priority — and any Lambda error — preserves the three-option keypad menu.
-6. Every menu path converges on one transfer-to-queue block.
+2. A language choice sets the Connect contact language to `en-US` or `es-419` before invoking the corresponding Lex voice prompt.
+3. Lex identifies technical, billing, onboarding, or agent intent. Routine requests go to the language-appropriate queue.
+4. Technical intent invokes Lambda, then the flow checks `External.priority`.
+5. Only `urgent` proceeds straight to `escalations`. A normal or missing priority — and any Lambda error — preserves the three-option keypad menu.
+6. Every branch converges on one transfer-to-queue block. Language-choice and Lex errors also have a keypad fallback.
 
 This pattern matters because it makes automation helpful without making it a single point of failure. A lookup failure should not prevent a caller from choosing support.
 
@@ -90,11 +92,12 @@ The project includes the non-code artifacts expected in a contact-center impleme
 - [Portfolio positioning](docs/PORTFOLIO_POSITIONING.md): accurate language for a CV, LinkedIn post, or interview.
 - [Lambda handler](lambda/support-context-lookup/index.mjs): deployed Node.js handler using only two fictional customer records; no environment variables or secrets.
 - [Lambda scenarios](lambda/support-context-lookup/simulate.mjs): validates the Connect event shape, urgent route input, standard input, unknown-caller fallback, and the published-flow fallback locally.
+- [CLI flow builder](scripts/build-voice-flow.mjs): reads the published flow and Lex alias, validates every branch, and writes an ignored candidate plus rollback copy before a separate deployment command.
 - Agent-workspace preview: run `node dist/agent-workspace-preview.js` after building to see the agent handoff created for an urgent call.
 
 ## What is intentionally not claimed
 
-The published Amazon Connect flow is a sandbox deployment, not a production contact center. This project does not claim that outside calls, the Contact Control Panel, DynamoDB, recordings, or callbacks were executed in AWS. The Lambda handler is deployed, console-tested, approved for use by the Connect instance, and its returned `priority` is evaluated by a published flow decision. It has not been exercised by an outside call; with no customer identifier in this sandbox, it deliberately returns its safe normal fallback. The richer account lookup remains an implementation-ready local model.
+The published Amazon Connect flow is a sandbox deployment, not a production contact center. This project does not claim that outside calls, end-to-end voice recognition, the Contact Control Panel, DynamoDB, recordings, or callbacks were executed in AWS. The Lambda handler is deployed, console-tested, approved for use by the Connect instance, and its returned `priority` is evaluated by a published flow decision on the technical-intent path. It has not been exercised by an outside call; with no customer identifier in this sandbox, it deliberately returns its safe normal fallback. The richer account lookup remains an implementation-ready local model.
 
 ## Learning goals
 
@@ -115,5 +118,6 @@ amazon-connect-routing-lab/
 │   ├── DEMO_RUNBOOK.md                 # Repeatable interview/video demo
 │   └── PORTFOLIO_POSITIONING.md        # Accurate resume and LinkedIn wording
 ├── lambda/support-context-lookup/      # Deployed Node.js Lambda and local scenarios
+├── scripts/build-voice-flow.mjs          # Reproducible CLI candidate builder
 └── src/                                # TypeScript model for richer future behavior
 ```

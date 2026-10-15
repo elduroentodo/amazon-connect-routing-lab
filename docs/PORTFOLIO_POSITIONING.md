@@ -2,27 +2,28 @@
 
 ## Project summary
 
-**Amazon Connect Routing Lab** is a bilingual SaaS support-routing portfolio project. Its published Amazon Connect sandbox flow invokes a Node.js Lambda lookup after its welcome prompt, checks the returned `priority` value, and sends an `urgent` result to escalation. Normal, missing, and Lambda-error outcomes retain the Spanish, urgent-technical, and general-support keypad paths. The Lambda uses only fictional data and safe fallback behavior; the TypeScript model demonstrates the richer next layer of callbacks and agent-ready handoff.
+**Amazon Connect Routing Lab** is a bilingual SaaS support-routing sandbox. Its published Connect flow now chooses a language, invokes an English or Spanish Lex V2 voice prompt, routes recognized routine intents to an appropriate queue, and sends technical intent through a Node.js Lambda priority check. A keypad fallback handles missing voice recognition or lookup errors. The CLI deployment was read back and verified to match the candidate flow.
 
-## Operational pain relieved
+## Operational pain addressed
 
-- Callers do not need to repeat basic context after reaching an agent.
-- High-impact technical incidents are not handled like ordinary requests.
-- Language is recognized early instead of being discovered after transfer.
-- A missing profile does not strand a customer in the IVR.
-- Supervisors can see why a routing decision happened.
+- Callers can describe a need in ordinary speech rather than navigating every support category by number.
+- Language is selected before voice recognition and queue assignment.
+- Technical urgency follows an explicit priority rule instead of an opaque voice-label decision.
+- An unrecognized utterance or unavailable lookup does not eliminate the keypad route.
 
 ## Honest resume / LinkedIn wording
 
-Use this wording:
+> Built and published a bilingual Amazon Connect sandbox flow integrating Amazon Lex V2 intent recognition with deterministic queue routing and a synchronous Node.js Lambda priority check. Added CLI-based flow generation, structural validation, published-content verification, and a rollback copy. Kept a keypad fallback for voice or lookup failures. Used fictional data only; no phone number, outside calls, or customer records were involved.
 
-> Built and published an Amazon Connect sandbox routing flow for bilingual SaaS support, with Spanish, urgent-technical, and general-support queues plus priority agent routing. Deployed and console-tested a Node.js Lambda customer-context lookup using fictional data and safe fallback behavior, then integrated it as a synchronous step and `priority` decision in the published flow. Built a TypeScript model for the richer DynamoDB-style enrichment, callbacks, agent handoff context, and auditable routing decisions.
+The local TypeScript model additionally demonstrates future callback, audit, and agent-handoff behavior. Do not describe those simulated components as deployed in AWS.
 
-Do **not** say that you managed production calls, processed real customer records, deployed DynamoDB, callbacks, or an agent workspace. The Amazon Connect configuration is published in a sandbox, but no phone number is attached and no live calls have been made. The flow does evaluate its fictional Lambda `priority` result, but its current no-identifier sandbox path deliberately uses the normal fallback and keypad menu.
+## Claims to avoid
+
+Do **not** say this handled production traffic, successfully recognized speech through an end-to-end Connect call, accessed a real CRM, provided RAG answers, or deployed a knowledge base. No number is attached. The Lambda receives no customer ID in the live flow and returns the safe normal-priority fallback; its fictional urgent case is tested locally.
 
 ## Interview talking points
 
-1. **Why Lambda before the queue?** The lookup supplies entitlement and incident context required to assign a fair priority.
-2. **Why retain a callback position?** A callback should reduce customer effort, not penalize a customer for leaving the phone queue.
-3. **What happens if data is unavailable?** The Lambda-error and normal-fallback paths preserve the keypad menu, so a caller can still choose support without being trapped by a lookup failure.
-4. **How would this become live?** Add a minimal approved data source, pass only necessary contact context to the Lambda, retain the validated returned-attribute rule, map selected attributes to the agent workspace, and test with a temporary number.
+1. **Why set language before Lex?** Connect must invoke the correct locale model; language is a routing input, not merely a prompt translation.
+2. **Why keep the Lambda priority check?** Intent tells us the topic, while trusted account/incident context determines urgency. In this sandbox, absent context correctly results in the keypad route.
+3. **Why keep DTMF?** Voice recognition and backend lookups can fail. A familiar numeric path allows the caller to continue.
+4. **What would be required for real use?** Least-privilege AWS access, approved data, bilingual fallback polish, controlled phone testing, queue staffing, and privacy/cost monitoring.

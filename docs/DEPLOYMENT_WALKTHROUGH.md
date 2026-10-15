@@ -1,144 +1,84 @@
-# Deployment walkthrough
+# Deployment walkthrough: bilingual voice intake
 
-This document explains the Amazon Connect Routing Lab as an implementation story, not just a collection of services. It separates the work that is deployed in an AWS sandbox from the richer local TypeScript model used to demonstrate future capabilities.
+This document explains the *published configuration* and the CLI change that added Amazon Lex V2 to the original Connect/Lambda routing lab. It also marks what remains untested. The diagram is redacted and contains no account IDs, phone numbers, or credentials.
 
-![Flow and fallback design](assets/published-flow-routing.svg)
+![Published voice-routing architecture](assets/published-flow-routing.svg)
 
-## The customer-support problem
+## The operational problem
 
-An ordinary phone tree can collect a caller's language and reason for calling, but it cannot reliably distinguish an urgent customer-impacting incident from a routine request. If every technical caller goes to the same queue, a known enterprise incident can wait behind routine work. If the data lookup fails and the flow disconnects the caller, the automation creates a worse experience than no automation at all.
+A keypad-only IVR makes every caller translate a problem into a numeric menu. A voice bot can recognize a caller's broad reason for contacting support, while the contact flow keeps queue selection explicit and auditable. We use Lex to recognize *intent*, not to make unsupported claims about account status or urgency. A small Lambda may supply trusted context for a technical incident; if it cannot, the keypad remains available.
 
-This lab implements a narrow, explainable rule:
+## What was verified in AWS
 
-```text
-When a validated lookup returns priority = urgent,
-send the contact to the escalation queue.
+1. The Connect instance had a published, nine-action base flow: welcome prompt → synchronous Lambda → `External.priority` check → escalation or three-option keypad → shared transfer. It also had three queues and an escalation-first routing profile.
+2. The Lex V2 alias was available on version 1, with `en_US` and `es_419` enabled. Both locales contained `TechnicalIncident`, `BillingHelp`, `OnboardingHelp`, and `SpeakToAgent`. The alias was associated with the Connect instance.
+3. The new flow candidate contained the original nine actions plus five new actions. A local validator checked unique action identifiers, all transition targets, and graph reachability.
+4. The CLI content update completed. A subsequent `describe-contact-flow` reported `PUBLISHED`, 14 actions, and content identical to the candidate.
+5. The instance had zero claimed phone numbers. No outside call or end-to-end Connect voice test was made.
 
-Otherwise, let the caller choose their support path from the normal keypad menu.
-```
+“Published” here means the flow configuration is available inside the AWS instance. It is **not** a production contact center and cannot receive an outside call without a phone number.
 
-That is deliberately more conservative than letting the lookup silently decide every customer path.
+## How the flow now works
 
-## What is and is not in the AWS sandbox
-
-| Deployed and published | Intentionally not enabled |
-| --- | --- |
-| Amazon Connect inbound contact flow | Phone number or external calling |
-| `escalations`, `spanish-support`, and `general-support` queues | Real customer records or CRM integration |
-| Escalation-first routing profile | DynamoDB, recordings, callbacks, or CCP customization |
-| Node.js Lambda with fictional profiles | Secrets, environment variables, or personal data |
-| Synchronous Lambda invocation and `External.priority` check | Production traffic or production service claims |
-
-The absence of a phone number is an important cost and safety control: the published flow has no outside callers and cannot create telephony usage through a live number.
-
-## Build sequence
-
-### 1. Model the work with queues
-
-The queues represent types of support work, not individual people:
-
-| Queue | Operational purpose |
-| --- | --- |
-| `escalations` | High-impact technical incidents that need rapid ownership. |
-| `spanish-support` | Requests where Spanish language support is the primary need. |
-| `general-support` | Standard English or general requests. |
-
-The routing profile ranks escalation work ahead of Spanish and general support. It is configured for one simultaneous voice contact, which makes the lab easy to explain without implying a production staffing model.
-
-### 2. Build a safe base contact flow
-
-The contact flow starts with a welcome prompt and a DTMF menu:
-
-| Key | Caller path | Queue set by the flow |
+| Stage | Action | Why it exists |
 | --- | --- | --- |
-| `1` | Spanish support | `spanish-support` |
-| `2` | Urgent technical incident | `escalations` |
-| `3` | General support | `general-support` |
+| 1 | Welcome, then “1 English / 2 Español” keypad choice | A deterministic choice tells Connect which Lex language model to use. |
+| 2 | Set Connect language to `en-US` or `es-419` | Lex V2 requires the contact language to match its bot locale. |
+| 3 | Ask for the support need with the matching Lex voice prompt | The bot classifies the utterance into a supported intent. |
+| 4a | Billing, onboarding, or human-agent intent → language-appropriate queue | These routine paths need no fictional account lookup. |
+| 4b | Technical intent → Lambda → check `External.priority` | Urgency remains a transparent rule based on returned context, not solely on a voice label. |
+| 5 | `urgent` → escalation; normal, missing, or Lambda error → keypad menu | Automation must not strand callers when context is insufficient. |
+| 6 | Every chosen queue → one shared transfer block | One transfer point keeps the routing change small and reviewable. |
 
-Each branch sets a working queue and then meets at one shared transfer-to-queue block. This removes duplicated transfer logic: if a transfer setting changes, there is only one place to update it.
+The original three-option keypad remains: `1` Spanish support, `2` urgent technical incident, `3` general support. Language-choice timeout, unrecognized Lex intent, or Lex error also lands on this menu. It is still English-language, even on a Spanish voice fallback; that is a known improvement before any real-caller test.
 
-### 3. Add an enrichment function
+The deployed Lambda uses two fictional profiles but receives **no customer ID** from this flow. It therefore returns `priority: normal` for the technical-intent path, and that path reaches the keypad. The urgent branch is wired, but the current published input cannot independently prove it via a live call. The local [`simulate.mjs`](../lambda/support-context-lookup/simulate.mjs) covers the fictional urgent and fallback contracts separately.
 
-The deployed Lambda is intentionally small. It accepts configured values beneath `Details.Parameters` and returns only a flat map of strings, which is compatible with Amazon Connect's **STRING MAP** response validation.
+## Reproducing the CLI change
 
-![Lambda request and response contract](assets/lambda-contract.svg)
+The [flow builder](../scripts/build-voice-flow.mjs) makes a change candidate from the *existing* published flow. It obtains the associated Lex alias through the CLI and refuses to insert voice blocks if the base flow has changed or the blocks already exist. The script changes no AWS resources; it writes two files under git-ignored `.local/`:
 
-Why flat strings? Contact flows are strongest when their decision data is predictable. A small value such as `priority: "urgent"` is easier to validate, log, and branch on than a nested application payload.
+- `flow-before-voice.json`: rollback copy of the original published content.
+- `flow-voice-candidate.json`: candidate with five additional actions.
 
-### 4. Permit and invoke the Lambda from Amazon Connect
-
-Amazon Connect must be explicitly allowed to use a Lambda function before a contact-flow block can invoke it. The configured block is synchronous: Connect waits for the result before it follows the next branch. That is appropriate here because priority context influences the next routing decision.
-
-The function's built-in profiles are fictional. The deployed flow currently sends no customer identifier, so the handler returns its safe fallback:
-
-```json
-{
-  "customerFound": "false",
-  "plan": "unknown",
-  "openIncident": "false",
-  "language": "en",
-  "issueType": "onboarding",
-  "priority": "normal"
-}
-```
-
-### 5. Turn the returned value into an explicit decision
-
-The published **Check contact attributes** block evaluates this exact condition:
-
-```text
-Namespace: External
-Key:       priority
-Operator:  Equals
-Value:     urgent
-```
-
-`External` means the value came from the immediately preceding Lambda invocation. It is not a database name and it is not an environment variable.
-
-The two outcomes are wired as follows:
-
-| Branch | Destination | Why |
-| --- | --- | --- |
-| `= urgent` | Set escalation queue → shared transfer block | Known urgent cases should not wait for the keypad. |
-| `No Match` | Existing three-option keypad menu | Normal or missing context should retain caller choice. |
-| Lambda `Error` | Existing three-option keypad menu | A dependency failure must not strand the caller. |
-
-### 6. Save, publish, and validate
-
-Saving creates a draft version; publishing is the action that makes that version active in the sandbox. The flow was saved and published after each branch had a destination.
-
-Local validation complements the console configuration:
+With AWS CLI v2 signed in to an appropriately scoped profile, run from the repository root (replace each placeholder with your own resource ID):
 
 ```bash
-npm install
-npm run simulate:lambda
-npm run simulate
+node scripts/build-voice-flow.mjs \
+  --profile=YOUR_PROFILE \
+  --region=YOUR_REGION \
+  --instance-id=YOUR_CONNECT_INSTANCE_ID \
+  --flow-id=YOUR_CONTACT_FLOW_ID \
+  --bot-id=YOUR_LEX_BOT_ID \
+  --alias-id=YOUR_LEX_ALIAS_ID
+
+aws connect update-contact-flow-content \
+  --profile YOUR_PROFILE --region YOUR_REGION \
+  --instance-id YOUR_CONNECT_INSTANCE_ID \
+  --contact-flow-id YOUR_CONTACT_FLOW_ID \
+  --content file://.local/flow-voice-candidate.json
 ```
 
-`simulate:lambda` verifies four fictional cases:
+The second command modifies the existing flow. First review the generated candidate and the intended routing before issuing it. AWS may reject invalid flow JSON; the successful response alone is not enough evidence. Read back `Status` and `Content`, then compare the live content with the candidate (as done for this deployment). Do not commit `.local/`: its files include account-specific ARNs, although they contain no credentials.
 
-1. Enterprise customer + open technical incident → `urgent`.
-2. Standard Spanish billing request → `normal`.
-3. Unknown caller → safe `normal` fallback.
-4. The no-parameter shape used by the published sandbox flow → safe `normal` fallback.
+If the new flow needs to be rolled back, reapply the saved original content to the **same** flow ID, then read it back again:
 
-## Why the fallback is a design requirement
+```bash
+aws connect update-contact-flow-content \
+  --profile YOUR_PROFILE --region YOUR_REGION \
+  --instance-id YOUR_CONNECT_INSTANCE_ID \
+  --contact-flow-id YOUR_CONTACT_FLOW_ID \
+  --content file://.local/flow-before-voice.json
+```
 
-The lookup is an aid to routing, not a gatekeeper for support. If a future data source is slow, unavailable, or incomplete, the caller can still select the correct queue. This is an example of graceful degradation: the experience loses optional context, but it retains the essential customer path.
+This rollback command is documented but was **not** run; the published voice flow remains active.
 
-## How this would progress responsibly
+## Costs and safety
 
-Before making this a live system, the next work would be:
+AWS CLI is only a way to configure AWS; it does not reduce the price of Lex, Connect, Lambda, or telephony usage. This project has no claimed phone number, so it cannot receive outside calls. It uses no real customer data or environment secrets. The CLI session used for this one-off update authenticated as the AWS account's root user; future routine work should use a least-privilege IAM Identity Center or IAM identity. A billing budget is a warning, not a spending cap.
 
-1. Define an approved, minimal source for customer context.
-2. Pass only the required fields to Lambda; avoid free-form problem descriptions and personal data.
-3. Retain the explicit, audited `priority` rule rather than hiding routing logic in code.
-4. Map only approved attributes to an agent workspace.
-5. Test with a temporary number during a scheduled window, then release it.
-6. Add least-privilege permissions and data-retention controls before production use.
+## What is next—and what is not yet built
 
-## Recruiter-friendly summary
+The voice layer is published and structurally verified, but not end-to-end call-tested. Before using it with callers, improve the Spanish fallback prompt, test both languages and each failure path using a temporary number during a planned window, confirm queue staffing, and inspect logs without storing unnecessary caller data.
 
-> Built and published an Amazon Connect sandbox flow for bilingual SaaS support. Configured queues and priority agent routing, deployed a Node.js Lambda lookup with fictional data, and used a validated returned priority attribute to send urgent cases to escalation while preserving a safe IVR fallback. No customer data or live calls were used.
-
-For exact claims and interview language, see [Portfolio positioning](PORTFOLIO_POSITIONING.md).
+A knowledge base or RAG-generated answer layer is **not** part of this deployment. It would need approved source documents, retrieval/grounding tests, answer boundaries, a human handoff, and a separate cost decision. The richer TypeScript simulation in this repository is also not the published Connect flow.

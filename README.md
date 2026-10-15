@@ -28,7 +28,7 @@ All customer profiles and contact IDs are fictional. No real customer informatio
 The following base routing configuration is deployed and published in a personal Amazon Connect sandbox:
 
 - An inbound flow asks for English or Spanish, then uses a Lex V2 voice prompt to recognize `TechnicalIncident`, `BillingHelp`, `OnboardingHelp`, or `SpeakToAgent`.
-- Billing, onboarding, and agent requests route to general English support or Spanish support according to the chosen language. Unrecognized voice input or a Lex error falls back to the original three-option keypad menu.
+- Billing, onboarding, and agent requests route to general English support or Spanish support according to the chosen language. An unrecognized intent in either language goes to `general-support` for human triage; a Lex timeout or service error still uses the keypad menu.
 - Three queues exist: `escalations`, `spanish-support`, and `general-support`.
 - Each selection sets the working queue, then converges on one shared transfer-to-queue block.
 - For technical intent, the flow invokes Lambda, then a published **Check contact attributes** block evaluates its returned `External.priority` value. `urgent` goes directly to escalation; normal, missing, or Lambda-error outcomes continue to the keypad menu.
@@ -57,7 +57,7 @@ The published flow follows this fault-tolerant sequence:
 3. Lex identifies technical, billing, onboarding, or agent intent. Routine requests go to the language-appropriate queue.
 4. Technical intent invokes Lambda, then the flow checks `External.priority`.
 5. Only `urgent` proceeds straight to `escalations`. A normal or missing priority — and any Lambda error — preserves the three-option keypad menu.
-6. Every branch converges on one transfer-to-queue block. Language-choice and Lex errors also have a keypad fallback.
+6. Every queue branch converges on one transfer-to-queue block. Unrecognized intent uses general support; language-choice errors, Lex timeouts/service errors, and Lambda failures retain the keypad fallback.
 
 This pattern matters because it makes automation helpful without making it a single point of failure. A lookup failure should not prevent a caller from choosing support.
 
@@ -93,6 +93,7 @@ The project includes the non-code artifacts expected in a contact-center impleme
 - [Lambda handler](lambda/support-context-lookup/index.mjs): deployed Node.js handler using only two fictional customer records; no environment variables or secrets.
 - [Lambda scenarios](lambda/support-context-lookup/simulate.mjs): validates the Connect event shape, urgent route input, standard input, unknown-caller fallback, and the published-flow fallback locally.
 - [CLI flow builder](scripts/build-voice-flow.mjs): reads the published flow and Lex alias, validates every branch, and writes an ignored candidate plus rollback copy before a separate deployment command.
+- [Lex no-match migration](scripts/route-unknown-lex-to-general.mjs): makes the small, reviewable change from the original keypad fallback to human general-support triage for unknown intent.
 - Agent-workspace preview: run `node dist/agent-workspace-preview.js` after building to see the agent handoff created for an urgent call.
 
 ## What is intentionally not claimed
@@ -119,5 +120,6 @@ amazon-connect-routing-lab/
 │   └── PORTFOLIO_POSITIONING.md        # Accurate resume and LinkedIn wording
 ├── lambda/support-context-lookup/      # Deployed Node.js Lambda and local scenarios
 ├── scripts/build-voice-flow.mjs          # Reproducible CLI candidate builder
+├── scripts/route-unknown-lex-to-general.mjs # Existing-flow no-match migration
 └── src/                                # TypeScript model for richer future behavior
 ```

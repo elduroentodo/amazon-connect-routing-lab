@@ -4,7 +4,7 @@ Use this runbook to record a short, repeatable portfolio video or to explain the
 
 ## Preparation
 
-1. In Amazon Connect, open the published `support-intake-routing` flow. Show the language choice, `en-US`/`es-419` settings, English/Spanish Lex voice steps, technical-intent Lambda path, and keypad fallback. Show that routine intents choose a language-appropriate queue and all queue paths share one transfer block. Do not claim an end-to-end call test.
+1. In Amazon Connect, open the published `support-intake-routing` flow. Show the language choice, `en-US`/`es-419` settings, English/Spanish Lex voice steps, technical-intent Lambda path, and fallback branches. Show that unrecognized intent in either language reaches `general-support`, while Lex timeout/service errors retain the keypad. Do not claim an end-to-end call test.
 2. In AWS Lambda, open `support-context-lookup` and show the successful console test. The built-in sample intentionally returns the safe fallback (`customerFound: false`, `priority: normal`), which is also the expected sandbox behavior when a technical-intent path sends no customer ID.
 3. From the project folder, run:
 

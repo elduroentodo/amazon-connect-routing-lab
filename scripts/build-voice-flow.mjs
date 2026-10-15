@@ -37,19 +37,21 @@ function languageAction(identifier, languageCode, nextAction) {
 }
 
 function lexAction(identifier, aliasArn, prompt, routineQueue) {
+  const errors = fallbackErrors("Choose routing path", true);
+  errors.find(error => error.ErrorType === "NoMatchingCondition").NextAction = "Set general support queue";
   return {
     Identifier: identifier,
     Type: "ConnectParticipantWithLexBot",
     Parameters: { Text: prompt, LexV2Bot: { AliasArn: aliasArn } },
     Transitions: {
-      NextAction: "Choose routing path",
+      NextAction: "Set general support queue",
       Conditions: [
         condition("TechnicalIncident", "Lookup support context"),
         condition("BillingHelp", routineQueue),
         condition("OnboardingHelp", routineQueue),
         condition("SpeakToAgent", routineQueue)
       ],
-      Errors: fallbackErrors("Choose routing path", true)
+      Errors: errors
     }
   };
 }

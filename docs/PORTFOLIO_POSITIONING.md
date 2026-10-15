@@ -2,18 +2,18 @@
 
 ## Project summary
 
-**Amazon Connect Routing Lab** is a bilingual SaaS support-routing sandbox. Its published Connect flow now chooses a language, invokes an English or Spanish Lex V2 voice prompt, routes recognized routine intents to an appropriate queue, and sends technical intent through a Node.js Lambda priority check. A keypad fallback handles missing voice recognition or lookup errors. The CLI deployment was read back and verified to match the candidate flow.
+**Amazon Connect Routing Lab** is a bilingual SaaS support-routing sandbox. Its published Connect flow chooses a language, invokes an English or Spanish Lex V2 voice prompt, routes recognized routine intents to an appropriate queue, and sends technical intent through a Node.js Lambda priority check. An unrecognized intent in either language goes to `general-support` for human triage; Lex silence/service errors and lookup errors retain a keypad fallback. The CLI deployment was read back and verified to match the candidate flow.
 
 ## Operational pain addressed
 
 - Callers can describe a need in ordinary speech rather than navigating every support category by number.
 - Language is selected before voice recognition and queue assignment.
 - Technical urgency follows an explicit priority rule instead of an opaque voice-label decision.
-- An unrecognized utterance or unavailable lookup does not eliminate the keypad route.
+- An unrecognized utterance goes to human general-support triage; an unavailable lookup retains the keypad route.
 
 ## Honest resume / LinkedIn wording
 
-> Built and published a bilingual Amazon Connect sandbox flow integrating Amazon Lex V2 intent recognition with deterministic queue routing and a synchronous Node.js Lambda priority check. Added CLI-based flow generation, structural validation, published-content verification, and a rollback copy. Kept a keypad fallback for voice or lookup failures. Used fictional data only; no phone number, outside calls, or customer records were involved.
+> Built and published a bilingual Amazon Connect sandbox flow integrating Amazon Lex V2 intent recognition with deterministic queue routing and a synchronous Node.js Lambda priority check. Added CLI-based flow generation, structural validation, published-content verification, and rollback copies. Routed unrecognized intents to a human general-support queue while retaining keypad recovery for service or lookup failures. Used fictional data only; no phone number, outside calls, or customer records were involved.
 
 The local TypeScript model additionally demonstrates future callback, audit, and agent-handoff behavior. Do not describe those simulated components as deployed in AWS.
 

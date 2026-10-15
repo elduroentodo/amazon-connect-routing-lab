@@ -12,7 +12,7 @@ This map separates the verified AWS sandbox from the richer local TypeScript sim
 | Priority decision | `External.priority = urgent` selects `escalations`; other results or Lambda errors go to the original three-option keypad. | The flow passes no customer ID, so the deployed Lambda returns `normal` on this path. The urgent branch is present but cannot be exercised by that input alone. |
 | Queues and routing profile | `escalations`, `spanish-support`, and `general-support` exist; the routing profile prioritizes escalation and permits one voice contact at a time. | No live contact has entered a queue. |
 | Lambda | The Node.js handler uses two fictional profiles and a flat string-map response. | No CRM, DynamoDB, real customer data, secrets, or production lookup. |
-| Safe fallback | Language-choice timeout/error, Lex no-match/error, and Lambda error lead to the keypad menu. Queue-setting errors lead to safe disconnect. | A safe disconnect is not a customer-facing recovery experience. |
+| Safe fallback | Lex unknown-intent/default routes in either language go to `general-support`. Language-choice timeout/error, Lex silence/service error, and Lambda error retain the keypad menu. Queue-setting errors lead to safe disconnect. | A safe disconnect is not a customer-facing recovery experience. |
 
 ## Contact-flow sequence
 
@@ -25,7 +25,8 @@ Welcome
        └─ Set es-419 → Lex Spanish ┬─ TechnicalIncident → same Lambda decision
                                    └─ billing/onboarding/agent → spanish-support
 
-Language/voice errors or unmatched intent → keypad:
+Unmatched voice intent in either language → general-support
+Language-choice errors, Lex silence/service errors, or Lambda errors → keypad:
   1 spanish-support / 2 escalations / 3 general-support
 
 Every chosen queue → shared TransferContactToQueue block

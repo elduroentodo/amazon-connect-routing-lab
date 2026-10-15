@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
   <title id="title">Published bilingual Amazon Connect sandbox routing flow</title>
-  <desc id="desc">Welcome and language selection lead to English or Spanish Lex voice intent. Routine intent chooses a language queue; technical intent invokes Lambda and checks priority. Errors and normal priority use the keypad fallback. All queues share one transfer block. No phone number is attached.</desc>
+  <desc id="desc">Welcome and language selection lead to English or Spanish Lex voice intent. Routine intent chooses a language queue; unknown intent goes to general support; technical intent invokes Lambda and checks priority. Silence, service errors, and normal priority use the keypad fallback. All queues share one transfer block. No phone number is attached.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#f8fafc"/><stop offset="1" stop-color="#eef2ff"/></linearGradient>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0 10 5 0 10z" fill="#475569"/></marker>
@@ -36,9 +36,9 @@
   <path d="M419 236 C445 236 444 298 474 298" class="line"/>
 
   <rect x="790" y="106" width="338" height="112" class="box" fill="#ecfdf5" stroke="#34d399"/>
-  <text x="959" y="140" text-anchor="middle" class="label">ROUTINE INTENT</text>
+  <text x="959" y="140" text-anchor="middle" class="label">ROUTINE OR UNKNOWN INTENT</text>
   <text x="959" y="170" text-anchor="middle" class="body">Billing · onboarding · speak to agent</text>
-  <text x="959" y="194" text-anchor="middle" class="body">English → general · Spanish → Spanish queue</text>
+  <text x="959" y="194" text-anchor="middle" class="body">Unknown → general · known Spanish → Spanish queue</text>
   <path d="M720 157 H790" class="line"/>
   <path d="M720 288 C759 288 750 202 790 202" class="line"/>
 
@@ -52,7 +52,7 @@
   <rect x="485" y="476" width="352" height="112" class="box" fill="#ffffff"/>
   <text x="661" y="509" text-anchor="middle" class="label">SAFE KEYPAD FALLBACK</text>
   <text x="661" y="540" text-anchor="middle" class="body">1 Spanish · 2 urgent · 3 general</text>
-  <text x="661" y="565" text-anchor="middle" class="body">Lex error/no match · Lambda error/normal</text>
+  <text x="661" y="565" text-anchor="middle" class="body">Lex silence/service error · Lambda error/normal</text>
   <path d="M324 261 C324 450 437 532 485 532" class="dash"/>
   <path d="M597 346 V476" class="dash"/>
   <path d="M790 356 C730 356 760 455 720 476" class="dash"/>
